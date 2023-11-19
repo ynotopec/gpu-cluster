@@ -4,7 +4,7 @@
 
 # Function to enable MicroK8s addons
 enable_addons() {
-  microk8s enable helm3 dns community hostpath-storage ingress rbac
+  microk8s enable helm3 dns community hostpath-storage ingress rbac cert-manager
   
   # Check if a DHCP IP range is provided as the first argument ($1)
   if [ -n "$1" ]; then
