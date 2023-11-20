@@ -113,11 +113,11 @@ snap install microk8s --classic
 # Optional: Wait for MicroK8s to be up and running
 microk8s status --wait-ready
 
-# Enable addons with the DHCP IP range passed as the first argument
-enable_addons "$1"
-
 # Configure kubectl
 configure_kubectl
+
+# Enable addons with the DHCP IP range passed as the first argument
+enable_addons "$1"
 
 # Install Helm and set alias
 echo "Installing and setting alias for Helm..."
