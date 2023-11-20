@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Variables
-export adminMail=admin@example.com
+export mailExpire=admin@example.com
 
 # Automated Installation Script for K8S GPU ML AI using MicroK8s
 
@@ -61,7 +61,6 @@ EOT
 
   echo "Configure TLS Issuer"
   microk8s enable cert-manager
-  mailExpire=${adminMail}
   cat <<EOF |kubectl apply -f -
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
