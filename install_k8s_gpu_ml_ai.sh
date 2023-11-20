@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Variables
-adminMail=admin@example.com
+export adminMail=admin@example.com
 
 # Automated Installation Script for K8S GPU ML AI using MicroK8s
 
