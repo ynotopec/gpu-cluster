@@ -33,7 +33,7 @@ data:
       timeSlicing:
         resources:
         - name: nvidia.com/gpu
-          replicas: 8
+          replicas: 5
 #        - name: nvidia.com/mig-1g.10gb
 #          replicas: 4
 #        - name: nvidia.com/mig-1g.10gb+me
