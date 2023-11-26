@@ -56,7 +56,7 @@ microk8s enable gpu
 
 ### Install and Configure kubectl
 
-Kubectl is the command-line tool for Kubernetes. Install it and set up an alias to use with MicroK8s:
+Kubectl is the command-line tool for Kubernetes. Set up an alias to use with MicroK8s:
 
 ```bash
 #snap install kubectl --classic
