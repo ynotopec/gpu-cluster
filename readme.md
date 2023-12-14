@@ -32,7 +32,7 @@ snap install microk8s --classic
 Enable necessary addons including Helm 3, DNS, hostpath storage, Ingress, and RBAC for Kubernetes:
 
 ```bash
-microk8s enable helm3 dns community hostpath-storage ingress rbac
+microk8s enable helm3 dns community hostpath-storage ingress rbac metrics-server
 ```
 
 ### Configure MetalLB
