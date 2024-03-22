@@ -85,8 +85,8 @@ EOF
 # Function to configure kubectl and set namespace
 configure_kubectl() {
   echo "Configuring kubectl..."
-#  snap install kubectl --classic
-  snap alias microk8s.kubectl kubectl
+  snap install kubectl --classic
+  #snap alias microk8s.kubectl kubectl
   
   # Set up Kubernetes configuration directory and file
   local kube_dir="${HOME}/.kube"
