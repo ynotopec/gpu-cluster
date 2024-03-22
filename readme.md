@@ -59,8 +59,8 @@ microk8s enable gpu
 Kubectl is the command-line tool for Kubernetes. Set up an alias to use with MicroK8s:
 
 ```bash
-#snap install kubectl --classic
-snap alias microk8s.kubectl kubectl
+snap install kubectl --classic
+#snap alias microk8s.kubectl kubectl
 ```
 
 ### Configure Helm Alias
