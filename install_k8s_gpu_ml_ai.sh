@@ -48,20 +48,20 @@ data:
 #          replicas: 14
 EOT
 
-  kubectl create -n gpu-operator-resources -f ~/time-slicing-config-fine.yaml
-  kubectl patch clusterpolicy/cluster-policy \
+  microk8s.kubectl create -n gpu-operator-resources -f ~/time-slicing-config-fine.yaml
+  microk8s.kubectl patch clusterpolicy/cluster-policy \
     -n gpu-operator-resources --type merge \
     -p '{"spec": {"devicePlugin": {"config": {"name": "time-slicing-config-fine"}}}}'
 
   #kubectl get events -n gpu-operator-resources --sort-by='.lastTimestamp'
 
-  kubectl label node \
+  microk8s.kubectl label node \
     --selector=nvidia.com/gpu.product=NVIDIA-H100-PCIe \
     nvidia.com/device-plugin.config=h100-80gb
 
   echo "Configure TLS Issuer"
   microk8s enable cert-manager
-  cat <<EOF |kubectl apply -f -
+  cat <<EOF |microk8s.kubectl apply -f -
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
