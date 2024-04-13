@@ -7,7 +7,8 @@ export mailExpire=admin@example.com
 
 # Function to enable MicroK8s addons
 enable_addons() {
-  microk8s enable helm3 dns community hostpath-storage ingress rbac metrics-server
+  microk8s enable community
+  microk8s enable helm3 dns hostpath-storage ingress rbac metrics-server nfs ha-cluster host-access observability
   
   # Check if a DHCP IP range is provided as the first argument ($1)
   if [ -n "$1" ]; then
@@ -96,8 +97,8 @@ configure_kubectl() {
   microk8s.kubectl config view --raw > "${kube_config}"
 
   # Create namespace and set it as the default context
-  kubectl create namespace infra-root
-  kubectl config set-context --current --namespace=infra-root
+  microk8s.kubectl create namespace infra-root
+  microk8s.kubectl config set-context --current --namespace=infra-root
 }
 
 # Ensure script is run as root
