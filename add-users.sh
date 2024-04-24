@@ -25,6 +25,9 @@ export passWdDefault='Aa-1'
       echo "${userLogin}:${passWd}" | chpasswd )
       passwd --expire "${userLogin}"
       rsync -aAX /etc/skel/ /home/${userLogin}/
+      mkdir /home/${userLogin}/.ssh
+      echo "${usersSsh}" >>/home/${userLogin}/authorized_keys
+      chmod 600 /home/${userLogin}/authorized_keys
       chown -R ${userLogin}: /home/${userLogin}
     )
   done
