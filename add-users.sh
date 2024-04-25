@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # User Variables
-export usersList='pnom'
-export passWdDefault='Aa-1'
+export usersList=$1
+export passWdDefault="$(mkpasswd |tr -c '[:alnum:]' '+' )"
+export usersSsh=$2
 
 # Script Start
 (
@@ -26,8 +27,8 @@ export passWdDefault='Aa-1'
       passwd --expire "${userLogin}"
       rsync -aAX /etc/skel/ /home/${userLogin}/
       mkdir /home/${userLogin}/.ssh
-      echo "${usersSsh}" >>/home/${userLogin}/authorized_keys
-      chmod 600 /home/${userLogin}/authorized_keys
+      echo "${usersSsh}" >>/home/${userLogin}/.ssh/authorized_keys
+      chmod 600 /home/${userLogin}/.ssh/authorized_keys
       chown -R ${userLogin}: /home/${userLogin}
     )
   done
