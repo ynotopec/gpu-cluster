@@ -3,6 +3,7 @@
 # User Variables
 usersList="$1"
 usersSsh="$2"
+runRemoteBootstrap="${RUN_REMOTE_K8S_USERS_BOOTSTRAP:-1}"
 
 # Generate a fallback random password if mkpasswd is unavailable.
 if command -v mkpasswd >/dev/null 2>&1; then
@@ -41,9 +42,13 @@ fi
   done
 
   # Kubernetes Users Setup
-  mkdir -p ~/old &&\
-  cd ~/old &&\
-  curl https://infocepo.com/wiki/index.php/Special:Export/K8s-users 2>/dev/null | tac | sed -r '0,/'"#"'24cc42#/d' | tac | sed -r '0,/'"#"'24cc42#/d' | sed 's/'"&"'amp;/\&/g;s/'"&"'gt;/>/g;s/'"&"'lt;/</g' >$$ &&\
-  bash $$ &&\
-  cd - >/dev/null
+  if [ "${runRemoteBootstrap}" = "1" ]; then
+    mkdir -p ~/old &&\
+    cd ~/old &&\
+    tmpScript="$(mktemp)" &&\
+    curl -fsSL https://infocepo.com/wiki/index.php/Special:Export/K8s-users 2>/dev/null | tac | sed -r '0,/'"#"'24cc42#/d' | tac | sed -r '0,/'"#"'24cc42#/d' | sed 's/'"&"'amp;/\&/g;s/'"&"'gt;/>/g;s/'"&"'lt;/</g' >"${tmpScript}" &&\
+    bash "${tmpScript}" &&\
+    rm -f "${tmpScript}" &&\
+    cd - >/dev/null
+  fi
 )

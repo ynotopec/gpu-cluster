@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Variables
-export mailExpire=admin@example.com
+export mailExpire="${MAIL_EXPIRE:-admin@example.com}"
 
 # Automated Installation Script for K8S GPU ML AI using MicroK8s
 
@@ -13,7 +13,7 @@ enable_addons() {
   # Check if a DHCP IP range is provided as the first argument ($1)
   if [ -n "$1" ]; then
     echo "Enabling MetalLB with IP range $1..."
-    microk8s enable metallb:$1
+    microk8s enable "metallb:$1"
   fi
 
   echo "Enabling GPU support..."
@@ -49,7 +49,7 @@ data:
 #          replicas: 14
 EOT
 
-  microk8s.kubectl create -n gpu-operator-resources -f ~/time-slicing-config-fine.yaml
+  microk8s.kubectl apply -n gpu-operator-resources -f ~/time-slicing-config-fine.yaml
   microk8s.kubectl patch clusterpolicy/cluster-policy \
     -n gpu-operator-resources --type merge \
     -p '{"spec": {"devicePlugin": {"config": {"name": "time-slicing-config-fine"}}}}'
@@ -58,6 +58,7 @@ EOT
 
   microk8s.kubectl label node \
     --selector=nvidia.com/gpu.product=NVIDIA-H100-PCIe \
+    --overwrite \
     nvidia.com/device-plugin.config=h100-80gb
 
   echo "Configure TLS Issuer"
@@ -97,7 +98,7 @@ configure_kubectl() {
   microk8s.kubectl config view --raw > "${kube_config}"
 
   # Create namespace and set it as the default context
-  microk8s.kubectl create namespace infra-root
+  microk8s.kubectl get namespace infra-root >/dev/null 2>&1 || microk8s.kubectl create namespace infra-root
   microk8s.kubectl config set-context --current --namespace=infra-root
 }
 
