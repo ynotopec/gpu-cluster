@@ -1,35 +1,42 @@
 #!/bin/bash
 
 # User Variables
-export usersList=$1
-export passWdDefault="$(mkpasswd |tr -c '[:alnum:]' '+' )"
-export usersSsh=$2
+usersList="$1"
+usersSsh="$2"
+
+# Generate a fallback random password if mkpasswd is unavailable.
+if command -v mkpasswd >/dev/null 2>&1; then
+  passWdDefault="$(mkpasswd | tr -c '[:alnum:]' '+')"
+else
+  passWdDefault="$(openssl rand -base64 18 | tr -c '[:alnum:]' '+')"
+fi
 
 # Script Start
 (
   # User Password Setup
   echo "Enter password (default:${passWdDefault}):"
   read passWd
-  [ -z "${passWd}" ] && export passWd=${passWdDefault}
+  [ -z "${passWd}" ] && passWd="${passWdDefault}"
 
   # Exit if no users specified
-  [ -z "${usersList}" ] && break
+  [ -z "${usersList}" ] && exit 0
 
   # Install rsync
   apt install rsync -y 2>/dev/null || yum install rsync -y
 
   # User Account Creation
-  echo "${usersList}" | while read userLogin; do
-    grep -w ${userLogin} /etc/passwd >/dev/null || (
+  echo "${usersList}" | while read -r userLogin; do
+    [ -z "${userLogin}" ] && continue
+    grep -w "${userLogin}" /etc/passwd >/dev/null || (
       useradd "${userLogin}" --shell /bin/bash
-      echo ${passWd} | passwd "${userLogin}" --stdin 2>/dev/null || (
+      echo "${passWd}" | passwd "${userLogin}" --stdin 2>/dev/null || (
       echo "${userLogin}:${passWd}" | chpasswd )
       passwd --expire "${userLogin}"
-      rsync -aAX /etc/skel/ /home/${userLogin}/
-      mkdir /home/${userLogin}/.ssh
+      rsync -aAX /etc/skel/ "/home/${userLogin}/"
+      mkdir -p "/home/${userLogin}/.ssh"
       echo "${usersSsh}" >>/home/${userLogin}/.ssh/authorized_keys
       chmod 600 /home/${userLogin}/.ssh/authorized_keys
-      chown -R ${userLogin}: /home/${userLogin}
+      chown -R "${userLogin}": "/home/${userLogin}"
     )
   done
 
