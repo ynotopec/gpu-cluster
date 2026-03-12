@@ -63,6 +63,22 @@ snap install kubectl --classic
 #snap alias microk8s.kubectl kubectl
 ```
 
+
+### Optional Environment Variables
+
+The installer supports optional environment overrides:
+
+```bash
+export MAIL_EXPIRE=ops@example.com
+./install_k8s_gpu_ml_ai.sh <YOUR-DHCP-RANGE>
+```
+
+The user bootstrap script can optionally skip the remote Kubernetes bootstrap step:
+
+```bash
+RUN_REMOTE_K8S_USERS_BOOTSTRAP=0 ./add-users.sh "user1\nuser2" "ssh-ed25519 AAAA..."
+```
+
 ### Configure Helm Alias
 
 Helm is a package manager for Kubernetes. After installing it with MicroK8s, set up an alias for ease of use:
@@ -86,7 +102,7 @@ microk8s.kubectl config view --raw > $KUBECONFIG
 Finally, create a new namespace named `infra-root` and set it as the default context for your kubectl commands:
 
 ```bash
-kubectl create namespace infra-root
+kubectl get namespace infra-root >/dev/null 2>&1 || kubectl create namespace infra-root
 kubectl config set-context --current --namespace=infra-root
 ```
 
