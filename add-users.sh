@@ -1,42 +1,53 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# User Variables
-export usersList=$1
-export passWdDefault="$(mkpasswd |tr -c '[:alnum:]' '+' )"
-export usersSsh=$2
+users_list="${1:-}"
+users_ssh="${2:-}"
 
-# Script Start
-(
-  # User Password Setup
-  echo "Enter password (default:${passWdDefault}):"
-  read passWd
-  [ -z "${passWd}" ] && export passWd=${passWdDefault}
+if [ -z "${users_list}" ]; then
+  echo "No users provided. Pass newline-separated users as argument 1."
+  exit 0
+fi
 
-  # Exit if no users specified
-  [ -z "${usersList}" ] && break
+if command -v mkpasswd >/dev/null 2>&1; then
+  generated_password="$(mkpasswd | tr -c '[:alnum:]' '+')"
+else
+  generated_password="$(openssl rand -base64 18 | tr -c '[:alnum:]' '+')"
+fi
+password="${USER_PASSWORD:-${generated_password}}"
 
-  # Install rsync
-  apt install rsync -y 2>/dev/null || yum install rsync -y
+install_rsync() {
+  apt-get update -y >/dev/null 2>&1 && apt-get install -y rsync >/dev/null 2>&1 && return 0
+  yum install -y rsync >/dev/null 2>&1 && return 0
+  echo "Unable to install rsync automatically."
+  return 1
+}
 
-  # User Account Creation
-  echo "${usersList}" | while read userLogin; do
-    grep -w ${userLogin} /etc/passwd >/dev/null || (
-      useradd "${userLogin}" --shell /bin/bash
-      echo ${passWd} | passwd "${userLogin}" --stdin 2>/dev/null || (
-      echo "${userLogin}:${passWd}" | chpasswd )
-      passwd --expire "${userLogin}"
-      rsync -aAX /etc/skel/ /home/${userLogin}/
-      mkdir /home/${userLogin}/.ssh
-      echo "${usersSsh}" >>/home/${userLogin}/.ssh/authorized_keys
-      chmod 600 /home/${userLogin}/.ssh/authorized_keys
-      chown -R ${userLogin}: /home/${userLogin}
-    )
-  done
+install_rsync || true
 
-  # Kubernetes Users Setup
-  mkdir -p ~/old &&\
-  cd ~/old &&\
-  curl https://infocepo.com/wiki/index.php/Special:Export/K8s-users 2>/dev/null | tac | sed -r '0,/'"#"'24cc42#/d' | tac | sed -r '0,/'"#"'24cc42#/d' | sed 's/'"&"'amp;/\&/g;s/'"&"'gt;/>/g;s/'"&"'lt;/</g' >$$ &&\
-  bash $$ &&\
-  cd - >/dev/null
-)
+echo "Provisioning users..."
+echo "${users_list}" | while IFS= read -r user_login; do
+  [ -z "${user_login}" ] && continue
+
+  if getent passwd "${user_login}" >/dev/null 2>&1; then
+    continue
+  fi
+
+  useradd "${user_login}" --shell /bin/bash
+  echo "${user_login}:${password}" | chpasswd
+  passwd --expire "${user_login}" || true
+
+  if [ -d /etc/skel ]; then
+    rsync -aAX /etc/skel/ "/home/${user_login}/" 2>/dev/null || true
+  fi
+
+  if [ -n "${users_ssh}" ]; then
+    install -d -m 700 "/home/${user_login}/.ssh"
+    printf '%s\n' "${users_ssh}" >> "/home/${user_login}/.ssh/authorized_keys"
+    chmod 600 "/home/${user_login}/.ssh/authorized_keys"
+  fi
+
+  chown -R "${user_login}:" "/home/${user_login}"
+done
+
+echo "Done."
