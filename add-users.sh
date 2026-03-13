@@ -1,54 +1,53 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# User Variables
-usersList="$1"
-usersSsh="$2"
-runRemoteBootstrap="${RUN_REMOTE_K8S_USERS_BOOTSTRAP:-1}"
+users_list="${1:-}"
+users_ssh="${2:-}"
 
-# Generate a fallback random password if mkpasswd is unavailable.
-if command -v mkpasswd >/dev/null 2>&1; then
-  passWdDefault="$(mkpasswd | tr -c '[:alnum:]' '+')"
-else
-  passWdDefault="$(openssl rand -base64 18 | tr -c '[:alnum:]' '+')"
+if [ -z "${users_list}" ]; then
+  echo "No users provided. Pass newline-separated users as argument 1."
+  exit 0
 fi
 
-# Script Start
-(
-  # User Password Setup
-  echo "Enter password (default:${passWdDefault}):"
-  read passWd
-  [ -z "${passWd}" ] && passWd="${passWdDefault}"
+if command -v mkpasswd >/dev/null 2>&1; then
+  generated_password="$(mkpasswd | tr -c '[:alnum:]' '+')"
+else
+  generated_password="$(openssl rand -base64 18 | tr -c '[:alnum:]' '+')"
+fi
+password="${USER_PASSWORD:-${generated_password}}"
 
-  # Exit if no users specified
-  [ -z "${usersList}" ] && exit 0
+install_rsync() {
+  apt-get update -y >/dev/null 2>&1 && apt-get install -y rsync >/dev/null 2>&1 && return 0
+  yum install -y rsync >/dev/null 2>&1 && return 0
+  echo "Unable to install rsync automatically."
+  return 1
+}
 
-  # Install rsync
-  apt install rsync -y 2>/dev/null || yum install rsync -y
+install_rsync || true
 
-  # User Account Creation
-  echo "${usersList}" | while read -r userLogin; do
-    [ -z "${userLogin}" ] && continue
-    grep -w "${userLogin}" /etc/passwd >/dev/null || (
-      useradd "${userLogin}" --shell /bin/bash
-      echo "${passWd}" | passwd "${userLogin}" --stdin 2>/dev/null || (
-      echo "${userLogin}:${passWd}" | chpasswd )
-      passwd --expire "${userLogin}"
-      rsync -aAX /etc/skel/ "/home/${userLogin}/"
-      mkdir -p "/home/${userLogin}/.ssh"
-      echo "${usersSsh}" >>/home/${userLogin}/.ssh/authorized_keys
-      chmod 600 /home/${userLogin}/.ssh/authorized_keys
-      chown -R "${userLogin}": "/home/${userLogin}"
-    )
-  done
+echo "Provisioning users..."
+echo "${users_list}" | while IFS= read -r user_login; do
+  [ -z "${user_login}" ] && continue
 
-  # Kubernetes Users Setup
-  if [ "${runRemoteBootstrap}" = "1" ]; then
-    mkdir -p ~/old &&\
-    cd ~/old &&\
-    tmpScript="$(mktemp)" &&\
-    curl -fsSL https://infocepo.com/wiki/index.php/Special:Export/K8s-users 2>/dev/null | tac | sed -r '0,/'"#"'24cc42#/d' | tac | sed -r '0,/'"#"'24cc42#/d' | sed 's/'"&"'amp;/\&/g;s/'"&"'gt;/>/g;s/'"&"'lt;/</g' >"${tmpScript}" &&\
-    bash "${tmpScript}" &&\
-    rm -f "${tmpScript}" &&\
-    cd - >/dev/null
+  if getent passwd "${user_login}" >/dev/null 2>&1; then
+    continue
   fi
-)
+
+  useradd "${user_login}" --shell /bin/bash
+  echo "${user_login}:${password}" | chpasswd
+  passwd --expire "${user_login}" || true
+
+  if [ -d /etc/skel ]; then
+    rsync -aAX /etc/skel/ "/home/${user_login}/" 2>/dev/null || true
+  fi
+
+  if [ -n "${users_ssh}" ]; then
+    install -d -m 700 "/home/${user_login}/.ssh"
+    printf '%s\n' "${users_ssh}" >> "/home/${user_login}/.ssh/authorized_keys"
+    chmod 600 "/home/${user_login}/.ssh/authorized_keys"
+  fi
+
+  chown -R "${user_login}:" "/home/${user_login}"
+done
+
+echo "Done."
