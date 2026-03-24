@@ -4,7 +4,9 @@ Lean automation for provisioning a GPU-capable MicroK8s host and onboarding user
 
 ## Project structure
 
-- `scripts/install_cluster.sh` – installs and configures MicroK8s + addons.
+- `install.sh` – primary idempotent installer entrypoint (loads `.env` automatically).
+- `upgrade.sh` – host/package refresh + idempotent cluster reconciliation.
+- `scripts/install_cluster.sh` – installs/configures MicroK8s + addons.
 - `scripts/add_users.sh` – creates users, applies SSH keys, forces first-login password reset.
 - `scripts/fix_admin.sh` – grants admin-group access and writes per-user kubeconfig.
 - `scripts/lib/common.sh` – shared shell utilities (logging, validation, package install helper).
@@ -14,13 +16,21 @@ Lean automation for provisioning a GPU-capable MicroK8s host and onboarding user
 ## Quick start
 
 ```bash
-sudo ./install_k8s_gpu_ml_ai.sh "192.168.1.200-192.168.1.220"
+cp .env.example .env
+sudo ./install.sh
 ```
 
-Optional environment variables:
+You can still pass MetalLB range inline:
+
+```bash
+sudo ./install.sh "192.168.1.200-192.168.1.220"
+```
+
+Optional environment variables (from `.env` or process env):
 
 - `MAIL_EXPIRE` (default: `admin@example.com`) for cert-manager issuer email.
 - `ENABLE_LETSENCRYPT=1` to create a `letsencrypt-prod` ClusterIssuer.
+- `METALLB_RANGE` to configure MetalLB.
 
 Create users (newline-separated):
 
@@ -32,6 +42,12 @@ Grant Kubernetes/admin access:
 
 ```bash
 sudo KUBECONFIG=/home/admin/.kube/config ./fix-admin.sh $'alice\nbob'
+```
+
+Reconcile packages + cluster (idempotent):
+
+```bash
+sudo ./upgrade.sh
 ```
 
 ## Repeatable maintenance

@@ -3,6 +3,8 @@ SHELL := /usr/bin/env bash
 
 SCRIPTS := \
 	install_k8s_gpu_ml_ai.sh \
+	install.sh \
+	upgrade.sh \
 	add-users.sh \
 	fix-admin.sh \
 	scripts/install_cluster.sh \
