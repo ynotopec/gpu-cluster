@@ -10,8 +10,8 @@ Lean automation for provisioning a GPU-capable MicroK8s host and onboarding user
 - `scripts/add_users.sh` – creates users, applies SSH keys, forces first-login password reset.
 - `scripts/fix_admin.sh` – grants admin-group access and writes per-user kubeconfig.
 - `scripts/lib/common.sh` – shared shell utilities (logging, validation, package install helper).
-- `Makefile` – repeatable linting/formatting/check workflows.
-- Legacy wrapper scripts at repo root keep existing command names working.
+- `scripts/lib/env.sh` – shared `.env` loader for root-level entrypoints.
+- `Makefile` – repeatable linting/formatting/check workflows + common operational commands.
 
 ## Quick start
 
@@ -53,7 +53,16 @@ sudo ./upgrade.sh
 ## Repeatable maintenance
 
 ```bash
-make lint     # shellcheck
-make format   # shfmt
-make check    # CI-friendly checks
+make lint          # shellcheck
+make format        # shfmt
+make check         # CI-friendly checks
+```
+
+## Makefile automation
+
+```bash
+make install METALLB_RANGE="192.168.1.200-192.168.1.220"
+make upgrade
+make add-users USERS=$'alice\nbob' USER_PASSWORD='ChangeMeNow!' USER_SSH_KEY='ssh-ed25519 AAAA...'
+make fix-admin USERS=$'alice\nbob' KUBECONFIG=/home/admin/.kube/config
 ```
