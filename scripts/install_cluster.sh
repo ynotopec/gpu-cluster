@@ -50,7 +50,11 @@ configure_kubeconfig() {
 }
 
 enable_addons() {
-  local addons=(community helm3 dns hostpath-storage ingress rbac metrics-server nfs host-access observability gpu)
+  local addons=(helm3 dns hostpath-storage ingress rbac metrics-server host-access observability gpu)
+
+  # `community` must be enabled first because some addons are only available once it is active.
+  log "Enabling addon: community"
+  microk8s enable community
 
   for addon in "${addons[@]}"; do
     log "Enabling addon: ${addon}"
