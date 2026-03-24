@@ -23,13 +23,21 @@ install_microk8s() {
   microk8s status --wait-ready
 }
 
-configure_kubectl() {
+install_cli_tools() {
+  install_if_missing snap snap
+
   if ! command -v kubectl >/dev/null 2>&1; then
     log "Installing kubectl via snap..."
-    install_if_missing snap snap
     snap install kubectl --classic
   fi
 
+  if ! command -v helm >/dev/null 2>&1; then
+    log "Installing helm via snap..."
+    snap install helm --classic >/dev/null 2>&1 || true
+  fi
+}
+
+configure_kubeconfig() {
   local kube_dir="${HOME}/.kube"
   local kube_config="${kube_dir}/config"
 
@@ -167,12 +175,12 @@ EOF_ISSUER
 main() {
   require_root
   install_microk8s
-  configure_kubectl
+  install_cli_tools
+  configure_kubeconfig
   enable_addons
   configure_gpu_time_slicing
   configure_letsencrypt_issuer
 
-  snap alias microk8s.helm3 helm >/dev/null 2>&1 || true
   microk8s status --wait-ready
 
   log "Cluster installation complete."
