@@ -2,15 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${ROOT_DIR}/.env"
+# shellcheck source=scripts/lib/env.sh
+source "${ROOT_DIR}/scripts/lib/env.sh"
 
-if [[ -f "${ENV_FILE}" ]]; then
-  # shellcheck disable=SC1090
-  set -a
-  source "${ENV_FILE}"
-  set +a
-fi
-
+load_repo_env
 METALLB_RANGE="${METALLB_RANGE:-${1:-}}"
 
 exec "${ROOT_DIR}/scripts/install_cluster.sh" "${METALLB_RANGE}"
