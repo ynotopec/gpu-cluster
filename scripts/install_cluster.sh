@@ -8,6 +8,8 @@ source "${SCRIPT_DIR}/lib/common.sh"
 MAIL_EXPIRE="${MAIL_EXPIRE:-admin@example.com}"
 ENABLE_LETSENCRYPT="${ENABLE_LETSENCRYPT:-0}"
 METALLB_RANGE="${1:-}"
+GPU_TIME_SLICING_REPLICAS="${GPU_TIME_SLICING_REPLICAS:-25}"
+GPU_TIME_SLICING_DEFAULT_PROFILE="${GPU_TIME_SLICING_DEFAULT_PROFILE:-any}"
 
 install_microk8s() {
   if ! command -v microk8s >/dev/null 2>&1; then
@@ -53,6 +55,91 @@ enable_addons() {
   fi
 }
 
+configure_gpu_time_slicing() {
+  local namespace="gpu-operator"
+  local configmap_name="time-slicing-config-fine"
+  local apply_output
+  local patch_output=""
+  local should_restart_device_plugin="0"
+
+  log "Applying NVIDIA GPU Operator time-slicing config (${configmap_name})"
+
+  apply_output="$(cat <<EOF_TIMESLICING | microk8s.kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${configmap_name}
+  namespace: ${namespace}
+data:
+  any: |-
+    version: v1
+    flags:
+      migStrategy: none
+    sharing:
+      timeSlicing:
+        resources:
+          - name: nvidia.com/gpu
+            replicas: ${GPU_TIME_SLICING_REPLICAS}
+  h100-80gb: |-
+    version: v1
+    flags:
+      migStrategy: mixed
+    sharing:
+      timeSlicing:
+        resources:
+          - name: nvidia.com/gpu
+            replicas: ${GPU_TIME_SLICING_REPLICAS}
+  a100-80gb: |-
+    version: v1
+    flags:
+      migStrategy: mixed
+    sharing:
+      timeSlicing:
+        resources:
+          - name: nvidia.com/gpu
+            replicas: ${GPU_TIME_SLICING_REPLICAS}
+  a100-40gb: |-
+    version: v1
+    flags:
+      migStrategy: mixed
+    sharing:
+      timeSlicing:
+        resources:
+          - name: nvidia.com/gpu
+            replicas: ${GPU_TIME_SLICING_REPLICAS}
+EOF_TIMESLICING
+)"
+  log "${apply_output}"
+
+  if [[ "${apply_output}" != *"unchanged"* ]]; then
+    should_restart_device_plugin="1"
+  fi
+
+  if microk8s.kubectl get clusterpolicy cluster-policy >/dev/null 2>&1; then
+    log "Patching gpu-operator ClusterPolicy to consume time-slicing profiles."
+    patch_output="$(cat <<EOF_CLUSTPOL | microk8s.kubectl patch clusterpolicy cluster-policy --type merge --patch-file /dev/stdin
+spec:
+  devicePlugin:
+    config:
+      name: ${configmap_name}
+      default: ${GPU_TIME_SLICING_DEFAULT_PROFILE}
+EOF_CLUSTPOL
+)"
+    log "${patch_output}"
+    if [[ "${patch_output}" != *"no change"* ]]; then
+      should_restart_device_plugin="1"
+    fi
+  else
+    log "ClusterPolicy gpu-operator/cluster-policy not found; skipping patch."
+  fi
+
+  if [[ "${should_restart_device_plugin}" == "1" ]]; then
+    log "Restarting GPU Operator device plugin pods to pick up config changes."
+    microk8s.kubectl rollout restart -n "${namespace}" daemonset/nvidia-device-plugin-daemonset >/dev/null 2>&1 || true
+    microk8s.kubectl rollout restart -n "${namespace}" daemonset/gpu-feature-discovery >/dev/null 2>&1 || true
+  fi
+}
+
 configure_letsencrypt_issuer() {
   [[ "${ENABLE_LETSENCRYPT}" == "1" ]] || return 0
 
@@ -82,6 +169,7 @@ main() {
   install_microk8s
   configure_kubectl
   enable_addons
+  configure_gpu_time_slicing
   configure_letsencrypt_issuer
 
   snap alias microk8s.helm3 helm >/dev/null 2>&1 || true
