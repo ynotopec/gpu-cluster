@@ -44,8 +44,12 @@ create_user() {
 
   if [[ -n "${users_ssh}" ]]; then
     install -d -m 700 "/home/${user_login}/.ssh"
-    printf '%s\n' "${users_ssh}" >>"/home/${user_login}/.ssh/authorized_keys"
-    chmod 600 "/home/${user_login}/.ssh/authorized_keys"
+    local auth_keys="/home/${user_login}/.ssh/authorized_keys"
+    touch "${auth_keys}"
+    chmod 600 "${auth_keys}"
+    if ! grep -Fxq "${users_ssh}" "${auth_keys}"; then
+      printf '%s\n' "${users_ssh}" >>"${auth_keys}"
+    fi
   fi
 
   chown -R "${user_login}:${user_login}" "/home/${user_login}"
