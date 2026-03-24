@@ -29,7 +29,8 @@ sudo ./install.sh "192.168.1.200-192.168.1.220"
 Optional environment variables (from `.env` or process env):
 
 - `MAIL_EXPIRE` (default: `admin@example.com`) for cert-manager issuer email.
-- `ENABLE_LETSENCRYPT=1` to create a `letsencrypt-prod` ClusterIssuer.
+- `ENABLE_LETSENCRYPT` (default: `1`) to create a `letsencrypt-prod` ClusterIssuer.
+  - The generated ACME HTTP-01 solver uses `ingressClassName: nginx`.
 - `METALLB_RANGE` to configure MetalLB.
 - `GPU_TIME_SLICING_REPLICAS` (default: `25`) to set GPU operator time-slicing replicas for the `any` profile and bundled MIG profiles.
 - `GPU_TIME_SLICING_DEFAULT_PROFILE` (default: `any`) to choose the default profile key in `time-slicing-config-fine` (recommended for mixed fleets, including DGX Spark).

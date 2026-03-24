@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 
 MAIL_EXPIRE="${MAIL_EXPIRE:-admin@example.com}"
-ENABLE_LETSENCRYPT="${ENABLE_LETSENCRYPT:-0}"
+ENABLE_LETSENCRYPT="${ENABLE_LETSENCRYPT:-1}"
 METALLB_RANGE="${1:-}"
 GPU_TIME_SLICING_REPLICAS="${GPU_TIME_SLICING_REPLICAS:-25}"
 GPU_TIME_SLICING_DEFAULT_PROFILE="${GPU_TIME_SLICING_DEFAULT_PROFILE:-any}"
@@ -172,7 +172,7 @@ spec:
     solvers:
       - http01:
           ingress:
-            class: public
+            ingressClassName: nginx
 EOF_ISSUER
 }
 
