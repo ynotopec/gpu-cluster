@@ -4,6 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck source=scripts/lib/env.sh
+source "${SCRIPT_DIR}/lib/env.sh"
+
+load_repo_env
 
 MAIL_EXPIRE="${MAIL_EXPIRE:-admin@example.com}"
 ENABLE_LETSENCRYPT="${ENABLE_LETSENCRYPT:-1}"
@@ -153,12 +157,39 @@ EOF_CLUSTPOL
 }
 
 configure_letsencrypt_issuer() {
-  [[ "${ENABLE_LETSENCRYPT}" == "1" ]] || return 0
+  if [[ "${ENABLE_LETSENCRYPT}" != "1" ]]; then
+    log "Skipping letsencrypt ClusterIssuer creation (ENABLE_LETSENCRYPT=${ENABLE_LETSENCRYPT})."
+    return 0
+  fi
 
   log "Enabling cert-manager and provisioning ClusterIssuer letsencrypt-prod"
   microk8s enable cert-manager
 
-  cat <<EOF_ISSUER | microk8s.kubectl apply -f -
+  log "Waiting for cert-manager CRDs to become available..."
+  local crd_wait_attempts=60
+  local crd_wait_sleep=5
+  local crd_wait_try
+  for ((crd_wait_try = 1; crd_wait_try <= crd_wait_attempts; crd_wait_try++)); do
+    if microk8s.kubectl get crd clusterissuers.cert-manager.io >/dev/null 2>&1; then
+      break
+    fi
+    if (( crd_wait_try == crd_wait_attempts )); then
+      die "Timed out waiting for cert-manager CRD clusterissuers.cert-manager.io."
+    fi
+    sleep "${crd_wait_sleep}"
+  done
+
+  log "Waiting for cert-manager controllers to become ready..."
+  microk8s.kubectl rollout status deployment/cert-manager -n cert-manager --timeout=300s
+  microk8s.kubectl rollout status deployment/cert-manager-webhook -n cert-manager --timeout=300s
+  microk8s.kubectl rollout status deployment/cert-manager-cainjector -n cert-manager --timeout=300s
+
+  local issuer_apply_attempts=12
+  local issuer_apply_sleep=5
+  local issuer_apply_try
+  local issuer_applied="0"
+  for ((issuer_apply_try = 1; issuer_apply_try <= issuer_apply_attempts; issuer_apply_try++)); do
+    if cat <<EOF_ISSUER | microk8s.kubectl apply -f -
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -174,6 +205,20 @@ spec:
           ingress:
             ingressClassName: nginx
 EOF_ISSUER
+    then
+      issuer_applied="1"
+      break
+    fi
+
+    if (( issuer_apply_try == issuer_apply_attempts )); then
+      die "Failed to apply ClusterIssuer letsencrypt-prod after ${issuer_apply_attempts} attempts."
+    fi
+
+    log "ClusterIssuer apply failed (attempt ${issuer_apply_try}/${issuer_apply_attempts}); retrying in ${issuer_apply_sleep}s..."
+    sleep "${issuer_apply_sleep}"
+  done
+
+  [[ "${issuer_applied}" == "1" ]] || die "ClusterIssuer apply did not complete successfully."
 }
 
 main() {
