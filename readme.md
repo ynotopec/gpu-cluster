@@ -6,7 +6,7 @@ Lean automation for provisioning a GPU-capable MicroK8s host and onboarding user
 
 - `install.sh` – primary idempotent installer entrypoint (loads `.env` automatically).
 - `upgrade.sh` – host/package refresh + idempotent cluster reconciliation.
-- `scripts/install_cluster.sh` – installs/configures MicroK8s + addons.
+- `scripts/install_cluster.sh` – installs/configures MicroK8s + addons (also loads repo `.env` when run directly).
 - `scripts/add_users.sh` – creates users, applies SSH keys, forces first-login password reset.
 - `scripts/fix_admin.sh` – grants admin-group access and writes per-user kubeconfig.
 - `scripts/lib/common.sh` – shared shell utilities (logging, validation, package install helper).
