@@ -19,7 +19,7 @@ install_microk8s() {
   if ! command -v microk8s >/dev/null 2>&1; then
     log "Installing MicroK8s via snap..."
     install_if_missing snap snap
-    snap install microk8s --classic
+    snap install microk8s --classic --channel=latest/stable
   else
     log "MicroK8s already installed; skipping snap install."
   fi
@@ -54,7 +54,7 @@ configure_kubeconfig() {
 }
 
 enable_addons() {
-  local addons=(helm3 dns hostpath-storage ingress rbac metrics-server host-access observability gpu)
+  local addons=(dns hostpath-storage ingress rbac metrics-server host-access observability gpu)
 
   # `community` must be enabled first because some addons are only available once it is active.
   log "Enabling addon: community"
