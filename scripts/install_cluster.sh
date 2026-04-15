@@ -54,7 +54,7 @@ configure_kubeconfig() {
 }
 
 enable_addons() {
-  local addons=(hostpath-storage rbac host-access ingress metrics-server gpu)
+  local addons=(hostpath-storage rbac host-access ingress metrics-server gpu cert-manager)
   local failed_addons=()
   local addon
 
@@ -179,8 +179,7 @@ configure_letsencrypt_issuer() {
     return 0
   fi
 
-  log "Enabling cert-manager and provisioning ClusterIssuer letsencrypt-prod"
-  microk8s enable cert-manager
+  log "Provisioning ClusterIssuer letsencrypt-prod"
 
   log "Waiting for cert-manager CRDs to become available..."
   local crd_wait_attempts=60
