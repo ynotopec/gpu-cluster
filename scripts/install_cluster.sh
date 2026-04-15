@@ -202,17 +202,31 @@ configure_letsencrypt_issuer() {
   microk8s.kubectl rollout status deployment/cert-manager-cainjector -n cert-manager --timeout=300s
 
   local selected_ingress_class="${LETSENCRYPT_INGRESS_CLASS}"
+  local solver_ingress_block=""
   if [[ "${selected_ingress_class}" == "auto" ]]; then
-    if microk8s.kubectl get ingressclass traefik >/dev/null 2>&1; then
-      selected_ingress_class="traefik"
+    if microk8s.kubectl get ingressclass public >/dev/null 2>&1; then
+      selected_ingress_class="public"
     elif microk8s.kubectl get ingressclass nginx >/dev/null 2>&1; then
       selected_ingress_class="nginx"
+    elif microk8s.kubectl get ingressclass traefik >/dev/null 2>&1; then
+      selected_ingress_class="traefik"
     else
-      selected_ingress_class="nginx"
-      log "No IngressClass named traefik or nginx found; defaulting ACME solver to nginx."
+      selected_ingress_class=""
+      log "No IngressClass named public, nginx, or traefik found; using cert-manager default ingress solver behavior."
     fi
   fi
-  log "Using IngressClass '${selected_ingress_class}' for letsencrypt ClusterIssuer solver."
+
+  if [[ -z "${selected_ingress_class}" ]]; then
+    solver_ingress_block="{}"
+    log "Using cert-manager default ingress solver behavior (no explicit ingress class)."
+  elif [[ "${selected_ingress_class}" == "public" ]]; then
+    # The MicroK8s ingress addon commonly uses legacy ingress class annotation (`class: public`).
+    solver_ingress_block=$'class: public'
+    log "Using legacy ingress class annotation 'public' for letsencrypt ClusterIssuer solver."
+  else
+    solver_ingress_block=$"ingressClassName: ${selected_ingress_class}"
+    log "Using IngressClass '${selected_ingress_class}' for letsencrypt ClusterIssuer solver."
+  fi
 
   local issuer_apply_attempts=12
   local issuer_apply_sleep=5
@@ -233,7 +247,7 @@ spec:
     solvers:
       - http01:
           ingress:
-            ingressClassName: ${selected_ingress_class}
+            ${solver_ingress_block}
 EOF_ISSUER
     then
       issuer_applied="1"
