@@ -111,10 +111,26 @@ configure_gpu_time_slicing() {
   local apply_output
   local patch_output=""
   local should_restart_device_plugin="0"
+  local namespace_wait_attempts=60
+  local namespace_wait_sleep=5
+  local namespace_wait_try
 
   log "Applying NVIDIA GPU Operator time-slicing config (${configmap_name})"
 
-  apply_output="$(cat <<EOF_TIMESLICING | microk8s.kubectl apply -f -
+  for ((namespace_wait_try = 1; namespace_wait_try <= namespace_wait_attempts; namespace_wait_try++)); do
+    if microk8s.kubectl get namespace "${namespace}" >/dev/null 2>&1; then
+      break
+    fi
+
+    if (( namespace_wait_try == namespace_wait_attempts )); then
+      log "WARNING: Namespace ${namespace} not found after waiting; skipping GPU time-slicing configuration."
+      return 0
+    fi
+
+    sleep "${namespace_wait_sleep}"
+  done
+
+  if ! apply_output="$(cat <<EOF_TIMESLICING | microk8s.kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -159,6 +175,10 @@ data:
             replicas: ${GPU_TIME_SLICING_REPLICAS}
 EOF_TIMESLICING
 )"
+  then
+    log "WARNING: Failed to apply GPU time-slicing ConfigMap; continuing installer without this step."
+    return 0
+  fi
   log "${apply_output}"
 
   if [[ "${apply_output}" != *"unchanged"* ]]; then
@@ -167,7 +187,7 @@ EOF_TIMESLICING
 
   if microk8s.kubectl get clusterpolicy cluster-policy >/dev/null 2>&1; then
     log "Patching gpu-operator ClusterPolicy to consume time-slicing profiles."
-    patch_output="$(cat <<EOF_CLUSTPOL | microk8s.kubectl patch clusterpolicy cluster-policy --type merge --patch-file /dev/stdin
+    if ! patch_output="$(cat <<EOF_CLUSTPOL | microk8s.kubectl patch clusterpolicy cluster-policy --type merge --patch-file /dev/stdin
 spec:
   devicePlugin:
     config:
@@ -175,6 +195,10 @@ spec:
       default: ${GPU_TIME_SLICING_DEFAULT_PROFILE}
 EOF_CLUSTPOL
 )"
+    then
+      log "WARNING: Failed to patch ClusterPolicy for GPU time-slicing; continuing installer."
+      return 0
+    fi
     log "${patch_output}"
     if [[ "${patch_output}" != *"no change"* ]]; then
       should_restart_device_plugin="1"
