@@ -16,6 +16,14 @@ METALLB_RANGE="${1:-}"
 GPU_TIME_SLICING_REPLICAS="${GPU_TIME_SLICING_REPLICAS:-25}"
 GPU_TIME_SLICING_DEFAULT_PROFILE="${GPU_TIME_SLICING_DEFAULT_PROFILE:-any}"
 
+is_truthy() {
+  local value="${1:-}"
+  case "${value,,}" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 install_microk8s() {
   if ! command -v microk8s >/dev/null 2>&1; then
     log "Installing MicroK8s via snap..."
@@ -175,7 +183,7 @@ EOF_CLUSTPOL
 }
 
 configure_letsencrypt_issuer() {
-  if [[ "${ENABLE_LETSENCRYPT}" != "1" ]]; then
+  if ! is_truthy "${ENABLE_LETSENCRYPT}"; then
     log "Skipping letsencrypt ClusterIssuer creation (ENABLE_LETSENCRYPT=${ENABLE_LETSENCRYPT})."
     return 0
   fi
