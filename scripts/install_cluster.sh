@@ -15,6 +15,34 @@ LETSENCRYPT_INGRESS_CLASS="${LETSENCRYPT_INGRESS_CLASS:-auto}"
 METALLB_RANGE="${1:-}"
 GPU_TIME_SLICING_REPLICAS="${GPU_TIME_SLICING_REPLICAS:-25}"
 GPU_TIME_SLICING_DEFAULT_PROFILE="${GPU_TIME_SLICING_DEFAULT_PROFILE:-any}"
+ADDON_ENABLE_TIMEOUT_SECONDS="${ADDON_ENABLE_TIMEOUT_SECONDS:-300}"
+
+is_truthy() {
+  local value="${1:-}"
+  case "${value,,}" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_falsy() {
+  local value="${1:-}"
+  case "${value,,}" in
+    0|false|no|off) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+run_with_timeout() {
+  local timeout_seconds="${1}"
+  shift
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "${timeout_seconds}" "$@"
+  else
+    "$@"
+  fi
+}
 
 install_microk8s() {
   if ! command -v microk8s >/dev/null 2>&1; then
@@ -55,20 +83,20 @@ configure_kubeconfig() {
 }
 
 enable_addons() {
-  local addons=(hostpath-storage rbac host-access ingress metrics-server gpu cert-manager)
+  local addons=(hostpath-storage rbac host-access ingress metrics-server cert-manager gpu)
   local failed_addons=()
   local addon
 
   # `community` must be enabled first because some addons are only available once it is active.
   log "Enabling addon: community"
-  if ! microk8s enable community; then
+  if ! run_with_timeout "${ADDON_ENABLE_TIMEOUT_SECONDS}" microk8s enable community; then
     log "WARNING: Failed to enable addon: community"
     failed_addons+=("community")
   fi
 
   for addon in "${addons[@]}"; do
     log "Enabling addon: ${addon}"
-    if ! microk8s enable "${addon}"; then
+    if ! run_with_timeout "${ADDON_ENABLE_TIMEOUT_SECONDS}" microk8s enable "${addon}"; then
       log "WARNING: Failed to enable addon: ${addon}"
       failed_addons+=("${addon}")
     fi
@@ -76,7 +104,7 @@ enable_addons() {
 
   if [[ -n "${METALLB_RANGE}" ]]; then
     log "Enabling MetalLB range: ${METALLB_RANGE}"
-    if ! microk8s enable "metallb:${METALLB_RANGE}"; then
+    if ! run_with_timeout "${ADDON_ENABLE_TIMEOUT_SECONDS}" microk8s enable "metallb:${METALLB_RANGE}"; then
       log "WARNING: Failed to enable addon: metallb:${METALLB_RANGE}"
       failed_addons+=("metallb:${METALLB_RANGE}")
     fi
@@ -98,7 +126,12 @@ configure_gpu_time_slicing() {
 
   log "Applying NVIDIA GPU Operator time-slicing config (${configmap_name})"
 
-  apply_output="$(cat <<EOF_TIMESLICING | microk8s.kubectl apply -f -
+  if ! microk8s.kubectl get namespace "${namespace}" >/dev/null 2>&1; then
+    log "WARNING: Namespace ${namespace} not found. GPU addon may be unavailable; skipping GPU time-slicing configuration."
+    return 0
+  fi
+
+  if ! apply_output="$(cat <<EOF_TIMESLICING | microk8s.kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -143,6 +176,10 @@ data:
             replicas: ${GPU_TIME_SLICING_REPLICAS}
 EOF_TIMESLICING
 )"
+  then
+    log "WARNING: Failed to apply GPU time-slicing ConfigMap; continuing installer without this step."
+    return 0
+  fi
   log "${apply_output}"
 
   if [[ "${apply_output}" != *"unchanged"* ]]; then
@@ -151,7 +188,7 @@ EOF_TIMESLICING
 
   if microk8s.kubectl get clusterpolicy cluster-policy >/dev/null 2>&1; then
     log "Patching gpu-operator ClusterPolicy to consume time-slicing profiles."
-    patch_output="$(cat <<EOF_CLUSTPOL | microk8s.kubectl patch clusterpolicy cluster-policy --type merge --patch-file /dev/stdin
+    if ! patch_output="$(cat <<EOF_CLUSTPOL | microk8s.kubectl patch clusterpolicy cluster-policy --type merge --patch-file /dev/stdin
 spec:
   devicePlugin:
     config:
@@ -159,6 +196,10 @@ spec:
       default: ${GPU_TIME_SLICING_DEFAULT_PROFILE}
 EOF_CLUSTPOL
 )"
+    then
+      log "WARNING: Failed to patch ClusterPolicy for GPU time-slicing; continuing installer."
+      return 0
+    fi
     log "${patch_output}"
     if [[ "${patch_output}" != *"no change"* ]]; then
       should_restart_device_plugin="1"
@@ -175,9 +216,14 @@ EOF_CLUSTPOL
 }
 
 configure_letsencrypt_issuer() {
-  if [[ "${ENABLE_LETSENCRYPT}" != "1" ]]; then
+  # Default behavior is enabled unless explicitly turned off.
+  if is_falsy "${ENABLE_LETSENCRYPT}"; then
     log "Skipping letsencrypt ClusterIssuer creation (ENABLE_LETSENCRYPT=${ENABLE_LETSENCRYPT})."
     return 0
+  fi
+
+  if ! is_truthy "${ENABLE_LETSENCRYPT}"; then
+    log "ENABLE_LETSENCRYPT=${ENABLE_LETSENCRYPT} is not a standard truthy value; proceeding with letsencrypt ClusterIssuer creation by default."
   fi
 
   log "Provisioning ClusterIssuer letsencrypt-prod"
@@ -270,8 +316,8 @@ main() {
   install_cli_tools
   configure_kubeconfig
   enable_addons
-  configure_gpu_time_slicing
   configure_letsencrypt_issuer
+  configure_gpu_time_slicing
 
   microk8s status --wait-ready
 
