@@ -24,6 +24,14 @@ is_truthy() {
   esac
 }
 
+is_falsy() {
+  local value="${1:-}"
+  case "${value,,}" in
+    0|false|no|off) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 install_microk8s() {
   if ! command -v microk8s >/dev/null 2>&1; then
     log "Installing MicroK8s via snap..."
@@ -183,9 +191,14 @@ EOF_CLUSTPOL
 }
 
 configure_letsencrypt_issuer() {
-  if ! is_truthy "${ENABLE_LETSENCRYPT}"; then
+  # Default behavior is enabled unless explicitly turned off.
+  if is_falsy "${ENABLE_LETSENCRYPT}"; then
     log "Skipping letsencrypt ClusterIssuer creation (ENABLE_LETSENCRYPT=${ENABLE_LETSENCRYPT})."
     return 0
+  fi
+
+  if ! is_truthy "${ENABLE_LETSENCRYPT}"; then
+    log "ENABLE_LETSENCRYPT=${ENABLE_LETSENCRYPT} is not a standard truthy value; proceeding with letsencrypt ClusterIssuer creation by default."
   fi
 
   log "Provisioning ClusterIssuer letsencrypt-prod"
