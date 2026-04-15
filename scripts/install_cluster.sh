@@ -11,6 +11,7 @@ load_repo_env
 
 MAIL_EXPIRE="${MAIL_EXPIRE:-admin@example.com}"
 ENABLE_LETSENCRYPT="${ENABLE_LETSENCRYPT:-1}"
+LETSENCRYPT_INGRESS_CLASS="${LETSENCRYPT_INGRESS_CLASS:-auto}"
 METALLB_RANGE="${1:-}"
 GPU_TIME_SLICING_REPLICAS="${GPU_TIME_SLICING_REPLICAS:-25}"
 GPU_TIME_SLICING_DEFAULT_PROFILE="${GPU_TIME_SLICING_DEFAULT_PROFILE:-any}"
@@ -200,6 +201,19 @@ configure_letsencrypt_issuer() {
   microk8s.kubectl rollout status deployment/cert-manager-webhook -n cert-manager --timeout=300s
   microk8s.kubectl rollout status deployment/cert-manager-cainjector -n cert-manager --timeout=300s
 
+  local selected_ingress_class="${LETSENCRYPT_INGRESS_CLASS}"
+  if [[ "${selected_ingress_class}" == "auto" ]]; then
+    if microk8s.kubectl get ingressclass traefik >/dev/null 2>&1; then
+      selected_ingress_class="traefik"
+    elif microk8s.kubectl get ingressclass nginx >/dev/null 2>&1; then
+      selected_ingress_class="nginx"
+    else
+      selected_ingress_class="nginx"
+      log "No IngressClass named traefik or nginx found; defaulting ACME solver to nginx."
+    fi
+  fi
+  log "Using IngressClass '${selected_ingress_class}' for letsencrypt ClusterIssuer solver."
+
   local issuer_apply_attempts=12
   local issuer_apply_sleep=5
   local issuer_apply_try
@@ -219,7 +233,7 @@ spec:
     solvers:
       - http01:
           ingress:
-            ingressClassName: nginx
+            ingressClassName: ${selected_ingress_class}
 EOF_ISSUER
     then
       issuer_applied="1"
@@ -236,7 +250,6 @@ EOF_ISSUER
 
   [[ "${issuer_applied}" == "1" ]] || die "ClusterIssuer apply did not complete successfully."
 }
-
 main() {
   require_root
   install_microk8s
