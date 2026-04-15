@@ -32,6 +32,7 @@ Optional environment variables (from `.env` or process env):
 - `ENABLE_LETSENCRYPT` (default: `1`) to create a `letsencrypt-prod` ClusterIssuer (only `0/false/no/off` disable it).
   - The generated ACME HTTP-01 solver uses `ingressClassName: nginx`.
 - `METALLB_RANGE` to configure MetalLB.
+- `ADDON_ENABLE_TIMEOUT_SECONDS` (default: `300`) timeout per addon enable step so one stuck addon does not block the rest.
 - `GPU_TIME_SLICING_REPLICAS` (default: `25`) to set GPU operator time-slicing replicas for the `any` profile and bundled MIG profiles.
 - `GPU_TIME_SLICING_DEFAULT_PROFILE` (default: `any`) to choose the default profile key in `time-slicing-config-fine` (recommended for mixed fleets, including DGX Spark).
 

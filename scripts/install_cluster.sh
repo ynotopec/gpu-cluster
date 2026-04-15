@@ -15,6 +15,7 @@ LETSENCRYPT_INGRESS_CLASS="${LETSENCRYPT_INGRESS_CLASS:-auto}"
 METALLB_RANGE="${1:-}"
 GPU_TIME_SLICING_REPLICAS="${GPU_TIME_SLICING_REPLICAS:-25}"
 GPU_TIME_SLICING_DEFAULT_PROFILE="${GPU_TIME_SLICING_DEFAULT_PROFILE:-any}"
+ADDON_ENABLE_TIMEOUT_SECONDS="${ADDON_ENABLE_TIMEOUT_SECONDS:-300}"
 
 is_truthy() {
   local value="${1:-}"
@@ -30,6 +31,17 @@ is_falsy() {
     0|false|no|off) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+run_with_timeout() {
+  local timeout_seconds="${1}"
+  shift
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "${timeout_seconds}" "$@"
+  else
+    "$@"
+  fi
 }
 
 install_microk8s() {
@@ -71,20 +83,20 @@ configure_kubeconfig() {
 }
 
 enable_addons() {
-  local addons=(hostpath-storage rbac host-access ingress metrics-server gpu cert-manager)
+  local addons=(hostpath-storage rbac host-access ingress metrics-server cert-manager gpu)
   local failed_addons=()
   local addon
 
   # `community` must be enabled first because some addons are only available once it is active.
   log "Enabling addon: community"
-  if ! microk8s enable community; then
+  if ! run_with_timeout "${ADDON_ENABLE_TIMEOUT_SECONDS}" microk8s enable community; then
     log "WARNING: Failed to enable addon: community"
     failed_addons+=("community")
   fi
 
   for addon in "${addons[@]}"; do
     log "Enabling addon: ${addon}"
-    if ! microk8s enable "${addon}"; then
+    if ! run_with_timeout "${ADDON_ENABLE_TIMEOUT_SECONDS}" microk8s enable "${addon}"; then
       log "WARNING: Failed to enable addon: ${addon}"
       failed_addons+=("${addon}")
     fi
@@ -92,7 +104,7 @@ enable_addons() {
 
   if [[ -n "${METALLB_RANGE}" ]]; then
     log "Enabling MetalLB range: ${METALLB_RANGE}"
-    if ! microk8s enable "metallb:${METALLB_RANGE}"; then
+    if ! run_with_timeout "${ADDON_ENABLE_TIMEOUT_SECONDS}" microk8s enable "metallb:${METALLB_RANGE}"; then
       log "WARNING: Failed to enable addon: metallb:${METALLB_RANGE}"
       failed_addons+=("metallb:${METALLB_RANGE}")
     fi
