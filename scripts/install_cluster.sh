@@ -54,7 +54,7 @@ configure_kubeconfig() {
 }
 
 enable_addons() {
-  local addons=(hostpath-storage rbac host-access gpu ingress metrics-server)
+  local addons=(hostpath-storage rbac host-access ingress metrics-server gpu)
 
   # `community` must be enabled first because some addons are only available once it is active.
   log "Enabling addon: community"
