@@ -55,19 +55,36 @@ configure_kubeconfig() {
 
 enable_addons() {
   local addons=(hostpath-storage rbac host-access ingress metrics-server gpu)
+  local failed_addons=()
+  local addon
 
   # `community` must be enabled first because some addons are only available once it is active.
   log "Enabling addon: community"
-  microk8s enable community
+  if ! microk8s enable community; then
+    log "WARNING: Failed to enable addon: community"
+    failed_addons+=("community")
+  fi
 
   for addon in "${addons[@]}"; do
     log "Enabling addon: ${addon}"
-    microk8s enable "${addon}"
+    if ! microk8s enable "${addon}"; then
+      log "WARNING: Failed to enable addon: ${addon}"
+      failed_addons+=("${addon}")
+    fi
   done
 
   if [[ -n "${METALLB_RANGE}" ]]; then
     log "Enabling MetalLB range: ${METALLB_RANGE}"
-    microk8s enable "metallb:${METALLB_RANGE}"
+    if ! microk8s enable "metallb:${METALLB_RANGE}"; then
+      log "WARNING: Failed to enable addon: metallb:${METALLB_RANGE}"
+      failed_addons+=("metallb:${METALLB_RANGE}")
+    fi
+  fi
+
+  if (( ${#failed_addons[@]} > 0 )); then
+    log "Addon installation incomplete. Missing/failed addons: ${failed_addons[*]}"
+  else
+    log "All requested addons enabled successfully."
   fi
 }
 
