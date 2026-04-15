@@ -111,24 +111,13 @@ configure_gpu_time_slicing() {
   local apply_output
   local patch_output=""
   local should_restart_device_plugin="0"
-  local namespace_wait_attempts=60
-  local namespace_wait_sleep=5
-  local namespace_wait_try
 
   log "Applying NVIDIA GPU Operator time-slicing config (${configmap_name})"
 
-  for ((namespace_wait_try = 1; namespace_wait_try <= namespace_wait_attempts; namespace_wait_try++)); do
-    if microk8s.kubectl get namespace "${namespace}" >/dev/null 2>&1; then
-      break
-    fi
-
-    if (( namespace_wait_try == namespace_wait_attempts )); then
-      log "WARNING: Namespace ${namespace} not found after waiting; skipping GPU time-slicing configuration."
-      return 0
-    fi
-
-    sleep "${namespace_wait_sleep}"
-  done
+  if ! microk8s.kubectl get namespace "${namespace}" >/dev/null 2>&1; then
+    log "WARNING: Namespace ${namespace} not found. GPU addon may be unavailable; skipping GPU time-slicing configuration."
+    return 0
+  fi
 
   if ! apply_output="$(cat <<EOF_TIMESLICING | microk8s.kubectl apply -f -
 apiVersion: v1
@@ -315,8 +304,8 @@ main() {
   install_cli_tools
   configure_kubeconfig
   enable_addons
-  configure_gpu_time_slicing
   configure_letsencrypt_issuer
+  configure_gpu_time_slicing
 
   microk8s status --wait-ready
 
